@@ -258,7 +258,7 @@ class CEmitter(QASMVisitor[None]):
 
     # ---- gate 定義
     def visit_QuantumGateDefinition(self, node: GateDefNode):  # type: ignore[override]
-        gname = node.name.name.upper()
+        gname = node.name.name
         qs = [f"qubit {q.name}" for q in node.qubits]
         cs = [f"double {p.name}" for p in getattr(node, "arguments", [])]
         sig = ", ".join(qs + cs) or "void"
@@ -272,7 +272,7 @@ class CEmitter(QASMVisitor[None]):
 
     # ---- def / function / subroutine
     def _visit_def_common(self, node):  # noqa: C901
-        fname = node.name.name.upper()
+        fname = node.name.name
         params: list[str] = []
 
         # Collect parameter list across AST generations
@@ -350,7 +350,7 @@ class CEmitter(QASMVisitor[None]):
 
     # ---- 量子命令
     def visit_QuantumGate(self, node: ast.QuantumGate):
-        gname = node.name.name.upper()
+        gname = node.name.name
         qargs = ", ".join(self._qubit(q) for q in node.qubits)
         params = ", ".join(self._expr(a) for a in node.arguments)
         arglist = ", ".join(x for x in (qargs, params) if x)
