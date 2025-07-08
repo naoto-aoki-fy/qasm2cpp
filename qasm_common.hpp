@@ -26,6 +26,9 @@ struct QasmUint {
     constexpr operator int() const noexcept;
 };
 
+template<int size>
+struct QasmFloat { };
+
 
 void CX(qubit, qubit);
 void H(qubit);

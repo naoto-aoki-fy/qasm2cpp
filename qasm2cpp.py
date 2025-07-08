@@ -233,6 +233,7 @@ class CEmitter(QASMVisitor[None]):
     def visit_Program(self, node: ast.Program):
         self.emit("#include <stdio.h>")
         self.emit("#include <math.h>")
+        self.emit("#include \"qasm_common.hpp\"")
         self.emit("")
 
         # --- グローバル constexpr 生成 ---
