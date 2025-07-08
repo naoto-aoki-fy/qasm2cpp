@@ -109,6 +109,7 @@ class CEmitter(QASMVisitor[None]):
     def __init__(self) -> None:
         self.lines: list[str] = []
         self._indent = 0
+        self.extern_names: set[str] = set()
 
     # ------------- 出力支援
     def emit(self, line: str = "") -> None:
@@ -173,14 +174,17 @@ class CEmitter(QASMVisitor[None]):
             case ast.BinaryExpression(op=o, lhs=l, rhs=r):
                 return f"{self._expr(l)} {op_str(o)} {self._expr(r)}"
             case ast.FunctionCall(name=ast.Identifier(name=n), arguments=args):
-                return f"{n}(" + ", ".join(self._expr(a) for a in args) + ")"
+                prefix = "" if n in self.extern_names else "qasm::"
+                return f"{prefix}{n}(" + ", ".join(self._expr(a) for a in args) + ")"
             case _ if hasattr(ast, "CallExpression") and isinstance(expr, ast.CallExpression):
                 callee = getattr(expr, "callee", None)
                 args   = getattr(expr, "arguments", [])
                 callee_str = self._expr(callee) if not isinstance(callee, ast.Identifier) else callee.name
+                if isinstance(callee, ast.Identifier) and callee_str not in self.extern_names:
+                    callee_str = f"qasm::{callee_str}"
                 return f"{callee_str}(" + ", ".join(self._expr(a) for a in args) + ")"
             case ast.QuantumMeasurement(qubit=q):
-                return f"MEASURE({self._qubit(q)})"
+                return f"qasm::measure({self._qubit(q)})"
             case ast.IndexExpression(collection=c, index=i):
                 return f"{self._expr(c)}[{self._index(i)}]"
             case ast.RangeDefinition():
@@ -257,7 +261,7 @@ class CEmitter(QASMVisitor[None]):
         qs = [f"qubit {q.name}" for q in node.qubits]
         cs = [f"double {p.name}" for p in getattr(node, "arguments", [])]
         sig = ", ".join(qs + cs) or "void"
-        self.emit(f"void {gname}({sig}) {{")
+        self.emit(f"void qasm::{gname}({sig}) {{")
         self._indent += 1
         for s in node.body:
             self.visit(s)
@@ -301,7 +305,7 @@ class CEmitter(QASMVisitor[None]):
 
         sig = ", ".join(params) if params else "void"
         rtype = self._ctype(getattr(node, "return_type", None)) if getattr(node, "return_type", None) else "void"
-        self.emit(f"{rtype} {fname}({sig}) {{")
+        self.emit(f"{rtype} qasm::{fname}({sig}) {{")
         self._indent += 1
         body = getattr(node, "body",
                        getattr(node, "program",
@@ -320,6 +324,7 @@ class CEmitter(QASMVisitor[None]):
     # ---- 宣言
     def visit_ExternDeclaration(self, node: ast.ExternDeclaration):
         name = node.name.name
+        self.extern_names.add(name)
         params = ", ".join(self._ctype(a.type) for a in node.arguments)
         rtype = self._ctype(node.return_type) if node.return_type else "void"
         self.emit(f"extern {rtype} {name}({params});")
@@ -342,7 +347,7 @@ class CEmitter(QASMVisitor[None]):
 
         if node.init_expression is not None:
             rhs = (str(node.init_expression.value) if is_template_uint and isinstance(node.init_expression, ast.IntegerLiteral)
-                   else f"MEASURE({self._qubit(node.init_expression.qubit)})"
+                   else f"qasm::measure({self._qubit(node.init_expression.qubit)})"
                    if isinstance(node.init_expression, ast.QuantumMeasurement)
                    else self._expr(node.init_expression))
             self.emit(f"{ctype_str} {name}{arr} = {rhs};")
@@ -355,15 +360,16 @@ class CEmitter(QASMVisitor[None]):
         qargs = ", ".join(self._qubit(q) for q in node.qubits)
         params = ", ".join(self._expr(a) for a in node.arguments)
         arglist = ", ".join(x for x in (qargs, params) if x)
-        self.emit(f"{gname}({arglist});")
+        prefix = "" if gname in self.extern_names else "qasm::"
+        self.emit(f"{prefix}{gname}({arglist});")
 
     def visit_QuantumMeasurementStatement(self, node: ast.QuantumMeasurementStatement):
         src = self._qubit(node.measure.qubit)
         if node.target:
             tgt = self._qubit(node.target)
-            self.emit(f"{tgt} = MEASURE({src});")
+            self.emit(f"{tgt} = qasm::measure({src});")
         else:
-            self.emit(f"MEASURE({src});")
+            self.emit(f"qasm::measure({src});")
 
     def visit_ReturnStatement(self, node: ast.ReturnStatement):
         expr = self._expr(node.expression) if getattr(node, "expression", None) else ""
@@ -374,7 +380,7 @@ class CEmitter(QASMVisitor[None]):
         self.emit(f"/* barrier {qs} */")
 
     def visit_QuantumReset(self, node: ast.QuantumReset):
-        self.emit(f"RESET({self._qubit(node.qubits)});")
+        self.emit(f"qasm::reset({self._qubit(node.qubits)});")
 
     # ---------- if / for（世代差分を共通処理に集約） ----------
     def _visit_if_common(self, node):

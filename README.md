@@ -23,7 +23,7 @@ python qasm2cpp.py < input.qasm > output.cpp
 python qasm2cpp.py input.qasm > output.cpp
 ```
 
-The generated code includes `qasm_common.hpp` and calls functions such as `CX`, `H` or `MEASURE`.  These are declared in the header as stubs so the output can be compiled or further adapted.
+The generated code includes `qasm_common.hpp` and calls functions such as `qasm::cx`, `qasm::h` or `qasm::measure`.  These are declared in the header as stubs so the output can be compiled or further adapted.
 
 ## Example
 
