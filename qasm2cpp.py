@@ -272,14 +272,37 @@ class CEmitter(QASMVisitor[None]):
     # ---- def / function / subroutine
     def _visit_def_common(self, node):  # noqa: C901
         fname = node.name.name.upper()
-        params = []
-        for p in getattr(node, "parameters", []):
+        params: list[str] = []
+
+        # Collect parameter list across AST generations
+        param_list = None
+        for attr in ("parameters", "arguments"):
+            if hasattr(node, attr):
+                param_list = getattr(node, attr)
+                break
+        if param_list is None:
+            param_list = []
+
+        for p in param_list:
             ptype = getattr(p, "type", None)
             pname = getattr(p, "identifier", getattr(p, "name", None))
-            if isinstance(ptype, ast.QubitType):
-                params.append(f"qubit {pname}")
+            if isinstance(pname, ast.Identifier):
+                pname = pname.name
+
+            is_qubit_arg = False
+            if hasattr(ast, "QuantumArgument") and isinstance(p, ast.QuantumArgument):
+                is_qubit_arg = True
+            elif hasattr(ast, "QubitType") and isinstance(ptype, ast.QubitType):
+                is_qubit_arg = True
+
+            if is_qubit_arg:
+                if hasattr(p, "size") and p.size is not None:
+                    params.append(f"qubit {pname}[{self._expr(p.size)}]")
+                else:
+                    params.append(f"qubit {pname}")
             else:
                 params.append(f"{self._ctype(ptype)} {pname}")
+
         sig = ", ".join(params) if params else "void"
         rtype = self._ctype(getattr(node, "return_type", None)) if getattr(node, "return_type", None) else "void"
         self.emit(f"{rtype} {fname}({sig}) {{")
