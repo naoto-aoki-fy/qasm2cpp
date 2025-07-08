@@ -257,8 +257,12 @@ class CEmitter(QASMVisitor[None]):
 
         self.emit("int main(void) {")
         self._indent += 1
+        extern_cls = getattr(ast, "ExternDeclaration", None)
+        exclude = (GateDefNode, *_DEF_NODES, *_CONST_NODES)
+        if extern_cls is not None:
+            exclude = (*exclude, extern_cls)
         for s in node.statements:
-            if not isinstance(s, (GateDefNode, *_DEF_NODES, *_CONST_NODES)):
+            if not isinstance(s, exclude):
                 self.visit(s)
         self.emit("return 0;")
         self._indent -= 1
