@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """
-qasm2cpp.py ― OpenQASM 3 → C++‐like code translator
-             （gate／def／for／if／cast／assign 2025-07 対応・新旧 AST 両対応）
+qasm2cpp.py ― OpenQASM 3 → C++‐like code translator.
+This script converts OpenQASM 3 programs into a simple C++ style syntax.
+It supports multiple AST generations (gate / def / for / if / cast / assign
+features as of 2025-07).
 
   * uint[N]     → QasmUint<N>
   * bit[N]      → QasmBit<N>
@@ -11,7 +13,7 @@ Requirements:
 
 Usage:
     python qasm2cpp.py < input.qasm > output.cpp
-    python qasm2cpp.py  input.qasm      # 標準出力へ生成コード
+    python qasm2cpp.py  input.qasm      # print to stdout
 """
 
 from __future__ import annotations
@@ -22,12 +24,12 @@ from openqasm3.visitor import QASMVisitor
 
 
 # --------------------------------------------------------------------
-# 定数置換
+# Constant replacements
 # --------------------------------------------------------------------
-CONST_REPLACE = {"pi": "M_PI"}        # math.h の円周率マクロ
+CONST_REPLACE = {"pi": "M_PI"}        # macro for π in math.h
 
 # --------------------------------------------------------------------
-# 旧版フォールバック (名前 / 整数 → 記号)
+# Fallback mappings for older ASTs (name / integer → operator symbol)
 # --------------------------------------------------------------------
 _OLD_NAME_MAP = {
     "ADD": "+", "SUB": "-", "MUL": "*",
@@ -49,7 +51,8 @@ _OLD_VALUE_MAP = {
 }
 
 # --------------------------------------------------------------------
-# Enum → 記号
+# --------------------------------------------------------------------
+# Map Enum values to operator symbols
 # --------------------------------------------------------------------
 _DYNAMIC_OPMAP: dict[ast.BinaryOperator | ast.UnaryOperator, str] = {
     **{op: str(op).split('.', 1)[1] for op in ast.BinaryOperator},
@@ -57,15 +60,15 @@ _DYNAMIC_OPMAP: dict[ast.BinaryOperator | ast.UnaryOperator, str] = {
 }
 
 def op_str(op: ast.BinaryOperator | ast.UnaryOperator) -> str:
-    """OpenQASM 3 演算子 Enum → C 記号"""
+    """Convert an OpenQASM operator enum into a C-style symbol."""
     if op in _DYNAMIC_OPMAP:
         return _DYNAMIC_OPMAP[op]
     if (n := getattr(op, 'name', None)) in _OLD_NAME_MAP:
         return _OLD_NAME_MAP[n]
-    return _OLD_VALUE_MAP.get(op.value, '?')    # 旧版: 整数値
+    return _OLD_VALUE_MAP.get(op.value, '?')    # legacy integer codes
 
 # --------------------------------------------------------------------
-# AST 世代間互換 ― ノード名の差分を吸収
+# AST compatibility helpers ― absorb name differences between versions
 # --------------------------------------------------------------------
 GateDefNode = getattr(ast, "QuantumGateDefinition",
                       getattr(ast, "GateDeclaration", None))
@@ -75,7 +78,7 @@ if GateDefNode is None:
 _DEF_NODE_NAMES = (
     "SubroutineDefinition",      # openqasm3 ≥0.11
     "FunctionDefinition",        # openqasm3 ≥0.10
-    "DefStatement",              # 旧称
+    "DefStatement",              # legacy name
 )
 _DEF_NODES = [getattr(ast, n) for n in _DEF_NODE_NAMES if hasattr(ast, n)]
 
@@ -89,53 +92,53 @@ _IF_NODES  = [getattr(ast, n) for n in _IF_NODE_NAMES  if hasattr(ast, n)]
 
 _CONST_NODE_NAMES = (
     "ConstantDeclaration",     # openqasm3 ≥0.10
-    "ConstDeclaration",        # 旧称
-    "ConstantDefinition",      # 派生実装の別名
+    "ConstDeclaration",        # legacy name
+    "ConstantDefinition",      # alternative name in some forks
 )
 _CONST_NODES = [getattr(ast, n) for n in _CONST_NODE_NAMES if hasattr(ast, n)]
 
 def _visit_const_common(self, node):
-    """const 宣言を C++ constexpr へ変換"""
+    """Convert a const declaration into a C++ ``constexpr``."""
     ctype = self._ctype(node.type)
     name  = node.identifier.name
     rhs   = self._expr(getattr(node, "value",
                      getattr(node, "init_expression", None)))
     self.emit(f"constexpr {ctype} {name} = {rhs};")
 
-# ----------  ★ Assignment ノード名を拡充 (2025-07)  ----------
+# ----------  ★ expanded assignment node names (2025-07)  ----------
 _ASSIGN_NODE_NAMES = (
     "AssignmentStatement", "UpdateStatement", "SetStatement", "Assignment",
-    "ClassicalAssignment",              # 新 AST
-    "AssignmentExpression",             # ExpressionStatement から検出
+    "ClassicalAssignment",              # new AST
+    "AssignmentExpression",             # extracted from ExpressionStatement
 )
 _ASSIGN_NODES = [getattr(ast, n) for n in _ASSIGN_NODE_NAMES if hasattr(ast, n)]
 
 def _visit_assign_common(self, node):
-    """代入文: 左辺と右辺の属性名が世代で異なるので網羅的に拾う"""
+    """Handle assignments across different AST generations."""
     lhs = next((getattr(node, a) for a in
                ("target", "lvalue", "identifier", "left", "lhs") if hasattr(node, a)), None)
     rhs = next((getattr(node, a) for a in
                ("expression", "value", "rvalue", "rhs", "right") if hasattr(node, a)), None)
-    if lhs is None or rhs is None:      # 予防
+    if lhs is None or rhs is None:      # safeguard
         return
     self.emit(f"{self._expr(lhs)} = {self._expr(rhs)};")
 
 # --------------------------------------------------------------------
-# C++‐like コード出力
+# Emit C++-like code from the OpenQASM AST
 # --------------------------------------------------------------------
 class CEmitter(QASMVisitor[None]):
     def __init__(self) -> None:
         self.lines: list[str] = []
         self._indent = 0
 
-    # ------------- 出力支援
+    # ------------- output helpers
     def emit(self, line: str = "") -> None:
         self.lines.append("    " * self._indent + line)
 
     def code(self) -> str:
         return "\n".join(self.lines)
 
-    # ------------- 型
+    # ------------- type handling
     def _ctype(self, ctype: ast.ClassicalType) -> str:  # noqa: C901
         if isinstance(ctype, ast.UintType) and ctype.size is not None:
             return f"QasmUint<{self._expr(ctype.size)}>"
@@ -157,9 +160,9 @@ class CEmitter(QASMVisitor[None]):
             return "bool"
         return "int"
 
-    # ------------- 式
+    # ------------- expression handling
     def _expr(self, expr: ast.Expression):  # noqa: C901
-        # 型キャスト
+        # --- type cast ---
         if (
             (CAST_NODE and isinstance(expr, CAST_NODE))
             or (hasattr(ast, "Cast") and isinstance(expr, ast.Cast))
@@ -173,7 +176,7 @@ class CEmitter(QASMVisitor[None]):
             if tgt and inner:
                 return f"(({self._ctype(tgt)})({self._expr(inner)}))"
 
-        # ----------  ★ AssignmentExpression も式として扱う  ----------
+        # ---------- also handle AssignmentExpression as an expression ----------
         if "AssignmentExpression" in _ASSIGN_NODE_NAMES and isinstance(expr, getattr(ast, "AssignmentExpression", ())):
             lval = self._expr(expr.lvalue)
             rval = self._expr(expr.rvalue)
@@ -232,7 +235,7 @@ class CEmitter(QASMVisitor[None]):
         return str(q)
 
     # ----------------------------------------------------------------
-    # visitor 実装
+    # visitor implementations
     # ----------------------------------------------------------------
     def visit_Program(self, node: ast.Program):
         self.emit("#include <stdio.h>")
@@ -240,17 +243,17 @@ class CEmitter(QASMVisitor[None]):
         self.emit("#include \"qasm_common.hpp\"")
         self.emit("")
 
-        # --- グローバル constexpr 生成 ---
+        # --- generate global constexpr values ---
         for s in node.statements:
             if isinstance(s, tuple(_CONST_NODES)):
                 self.visit(s)
 
-        # extern 宣言
+        # extern declarations
         for s in node.statements:
             if hasattr(ast, "ExternDeclaration") and isinstance(s, ast.ExternDeclaration):
                 self.visit(s)
 
-        # gate / def 前方宣言
+        # forward declarations for gate/def
         for s in node.statements:
             if isinstance(s, (GateDefNode, * _DEF_NODES)):
                 self.visit(s)
@@ -269,7 +272,7 @@ class CEmitter(QASMVisitor[None]):
         self.emit("}")
         return self.code()
 
-    # ---- gate 定義
+    # ---- gate definition
     def visit_QuantumGateDefinition(self, node: GateDefNode):  # type: ignore[override]
         gname = node.name.name
         qs = [f"qubit {q.name}" for q in node.qubits]
@@ -283,7 +286,7 @@ class CEmitter(QASMVisitor[None]):
         self.emit("}")
         self.emit("")
 
-    # ---- def / function / subroutine
+    # ---- def / function / subroutine handlers
     def _visit_def_common(self, node):  # noqa: C901
         fname = node.name.name
         params: list[str] = []
@@ -335,7 +338,7 @@ class CEmitter(QASMVisitor[None]):
     for cls in _DEF_NODES:
         locals()[f"visit_{cls.__name__}"] = _visit_def_common    # type: ignore
 
-    # ---- 宣言
+    # ---- declarations
     def visit_ExternDeclaration(self, node: ast.ExternDeclaration):
         name = node.name.name
         params = ", ".join(self._ctype(a.type) for a in node.arguments)
@@ -367,7 +370,7 @@ class CEmitter(QASMVisitor[None]):
         else:
             self.emit(f"{ctype_str} {name}{arr};")
 
-    # ---- 量子命令
+    # ---- quantum instructions
     def visit_QuantumGate(self, node: ast.QuantumGate):
         gname = node.name.name
         qargs = ", ".join(self._qubit(q) for q in node.qubits)
@@ -394,7 +397,7 @@ class CEmitter(QASMVisitor[None]):
     def visit_QuantumReset(self, node: ast.QuantumReset):
         self.emit(f"RESET({self._qubit(node.qubits)});")
 
-    # ---------- if / for（世代差分を共通処理に集約） ----------
+    # ---------- unified handlers for if/for across AST versions ----------
     def _visit_if_common(self, node):
         cond = self._expr(getattr(node, "condition",
                           getattr(node, "cond", None)))
@@ -466,23 +469,25 @@ class CEmitter(QASMVisitor[None]):
     for cls in _ASSIGN_NODES:
         locals()[f"visit_{cls.__name__}"] = _visit_assign_common  # type: ignore
 
-    # ----------  ★ ExpressionStatement をサポート  ----------
+    # ---------- support ExpressionStatement ----------
     def visit_ExpressionStatement(self, node: ast.ExpressionStatement):
         self.emit(f"{self._expr(node.expression)};")
 
-# ノードを visitor にバインド（const）
+# Bind const nodes to the visitor
 for cls in _CONST_NODES:
     setattr(CEmitter, f"visit_{cls.__name__}", _visit_const_common)
 
 # --------------------------------------------------------------------
-# front-end
+# front-end utilities
 # --------------------------------------------------------------------
 def translate(qasm_src: str) -> str:
+    """Parse OpenQASM source and return translated C++ code."""
     program = openqasm3.parse(qasm_src)
     return CEmitter().visit(program)
 
 
 def main() -> None:
+    """Entry point when executed as a script."""
     src = sys.stdin.read() if len(sys.argv) == 1 else open(sys.argv[1]).read()
     print(translate(src))
 
