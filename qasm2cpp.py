@@ -143,11 +143,15 @@ class CEmitter(QASMVisitor[None]):
             return f"QasmBit<{self._expr(ctype.size)}>"
         if isinstance(ctype, ast.FloatType) and getattr(ctype, "size", None) is not None:
             return f"QasmFloat<{self._expr(ctype.size)}>"
+        if hasattr(ast, "AngleType") and isinstance(ctype, ast.AngleType) and getattr(ctype, "size", None) is not None:
+            return f"QasmFloat<{self._expr(ctype.size)}>"
         if isinstance(ctype, (ast.BitType, ast.IntType)):
             return "int"
         if isinstance(ctype, ast.UintType):
             return "unsigned int"
         if isinstance(ctype, ast.FloatType):
+            return "double"
+        if hasattr(ast, "AngleType") and isinstance(ctype, ast.AngleType):
             return "double"
         if isinstance(ctype, ast.BoolType):
             return "bool"
@@ -241,6 +245,11 @@ class CEmitter(QASMVisitor[None]):
             if isinstance(s, tuple(_CONST_NODES)):
                 self.visit(s)
 
+        # extern 宣言
+        for s in node.statements:
+            if hasattr(ast, "ExternDeclaration") and isinstance(s, ast.ExternDeclaration):
+                self.visit(s)
+
         # gate / def 前方宣言
         for s in node.statements:
             if isinstance(s, (GateDefNode, * _DEF_NODES)):
@@ -323,6 +332,12 @@ class CEmitter(QASMVisitor[None]):
         locals()[f"visit_{cls.__name__}"] = _visit_def_common    # type: ignore
 
     # ---- 宣言
+    def visit_ExternDeclaration(self, node: ast.ExternDeclaration):
+        name = node.name.name
+        params = ", ".join(self._ctype(a.type) for a in node.arguments)
+        rtype = self._ctype(node.return_type) if node.return_type else "void"
+        self.emit(f"extern {rtype} {name}({params});")
+
     def visit_QubitDeclaration(self, node: ast.QubitDeclaration):
         size = self._expr(node.size) if node.size else "1"
         self.emit(f"qubit {node.qubit.name}[{size}];")
