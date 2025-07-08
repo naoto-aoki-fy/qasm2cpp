@@ -19,6 +19,7 @@ struct QasmBit {
 
 template<int size>
 struct QasmUint {
+    QasmUint();
     QasmUint(unsigned int);
     int operator[](int n) const;
     int operator+(int n) const;
@@ -30,9 +31,11 @@ template<int size>
 struct QasmFloat { };
 
 
-void CX(qubit, qubit);
-void H(qubit);
-void S(qubit);
-void RY(qubit, int);
+void cx(qubit, qubit);
+void h(qubit);
+void s(qubit);
+template<int size>
+void ry(qubit, QasmFloat<size>);
+void RESET(qubit);
 
 int MEASURE(qubit);
