@@ -94,14 +94,6 @@ _CONST_NODE_NAMES = (
 )
 _CONST_NODES = [getattr(ast, n) for n in _CONST_NODE_NAMES if hasattr(ast, n)]
 
-def _visit_const_common(self, node):
-    """const 宣言を C++ constexpr へ変換"""
-    ctype = self._ctype(node.type)
-    name  = node.identifier.name
-    rhs   = self._expr(getattr(node, "value",
-                     getattr(node, "init_expression", None)))
-    self.emit(f"constexpr {ctype} {name} = {rhs};")
-
 # ----------  ★ Assignment ノード名を拡充 (2025-07)  ----------
 _ASSIGN_NODE_NAMES = (
     "AssignmentStatement", "UpdateStatement", "SetStatement", "Assignment",
@@ -109,16 +101,6 @@ _ASSIGN_NODE_NAMES = (
     "AssignmentExpression",             # ExpressionStatement から検出
 )
 _ASSIGN_NODES = [getattr(ast, n) for n in _ASSIGN_NODE_NAMES if hasattr(ast, n)]
-
-def _visit_assign_common(self, node):
-    """代入文: 左辺と右辺の属性名が世代で異なるので網羅的に拾う"""
-    lhs = next((getattr(node, a) for a in
-               ("target", "lvalue", "identifier", "left", "lhs") if hasattr(node, a)), None)
-    rhs = next((getattr(node, a) for a in
-               ("expression", "value", "rvalue", "rhs", "right") if hasattr(node, a)), None)
-    if lhs is None or rhs is None:      # 予防
-        return
-    self.emit(f"{self._expr(lhs)} = {self._expr(rhs)};")
 
 # --------------------------------------------------------------------
 # C++‐like コード出力
@@ -459,20 +441,37 @@ class CEmitter(QASMVisitor[None]):
         self._indent -= 1
         self.emit("}")
 
+    def _visit_assign_common(self, node):
+        """代入文: 左辺と右辺の属性名が世代で異なるので網羅的に拾う"""
+        lhs = next((getattr(node, a) for a in
+                   ("target", "lvalue", "identifier", "left", "lhs") if hasattr(node, a)), None)
+        rhs = next((getattr(node, a) for a in
+                   ("expression", "value", "rvalue", "rhs", "right") if hasattr(node, a)), None)
+        if lhs is None or rhs is None:      # 予防
+            return
+        self.emit(f"{self._expr(lhs)} = {self._expr(rhs)};")
+
+    def _visit_const_common(self, node):
+        """const 宣言を C++ constexpr へ変換"""
+        ctype = self._ctype(node.type)
+        name  = node.identifier.name
+        rhs   = self._expr(getattr(node, "value",
+                         getattr(node, "init_expression", None)))
+        self.emit(f"constexpr {ctype} {name} = {rhs};")
+
     for cls in _IF_NODES:
         locals()[f"visit_{cls.__name__}"] = _visit_if_common      # type: ignore
     for cls in _FOR_NODES:
         locals()[f"visit_{cls.__name__}"] = _visit_for_common     # type: ignore
     for cls in _ASSIGN_NODES:
         locals()[f"visit_{cls.__name__}"] = _visit_assign_common  # type: ignore
+    for cls in _CONST_NODES:
+        locals()[f"visit_{cls.__name__}"] = _visit_const_common   # type: ignore
 
     # ----------  ★ ExpressionStatement をサポート  ----------
     def visit_ExpressionStatement(self, node: ast.ExpressionStatement):
         self.emit(f"{self._expr(node.expression)};")
 
-# ノードを visitor にバインド（const）
-for cls in _CONST_NODES:
-    setattr(CEmitter, f"visit_{cls.__name__}", _visit_const_common)
 
 # --------------------------------------------------------------------
 # front-end
