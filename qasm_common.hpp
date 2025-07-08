@@ -31,11 +31,13 @@ template<int size>
 struct QasmFloat { };
 
 
+namespace qasm {
 void cx(qubit, qubit);
 void h(qubit);
 void s(qubit);
 template<int size>
 void ry(qubit, QasmFloat<size>);
-void RESET(qubit);
+void reset(qubit);
 
-int MEASURE(qubit);
+int measure(qubit);
+} // namespace qasm
