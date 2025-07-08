@@ -115,7 +115,7 @@ def _visit_assign_common(self, node):
     lhs = next((getattr(node, a) for a in
                ("target", "lvalue", "identifier", "left", "lhs") if hasattr(node, a)), None)
     rhs = next((getattr(node, a) for a in
-               ("expression", "value", "rhs", "right") if hasattr(node, a)), None)
+               ("expression", "value", "rvalue", "rhs", "right") if hasattr(node, a)), None)
     if lhs is None or rhs is None:      # 予防
         return
     self.emit(f"{self._expr(lhs)} = {self._expr(rhs)};")
