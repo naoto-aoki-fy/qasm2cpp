@@ -245,11 +245,8 @@ class CEmitter(QASMVisitor[None]):
             if isinstance(s, (self.GateDefNode, * self._DEF_NODES)):
                 self.visit(s)
 
-        self._indent -= 1
-        self.emit("}")
-        self.emit("")
-
-        self.emit("int main(void) {")
+        # Generate the translated circuit as a function within the qasm namespace
+        self.emit("int circuit(void) {")
         self._indent += 1
         extern_cls = getattr(ast, "ExternDeclaration", None)
         exclude = (self.GateDefNode, *self._DEF_NODES, *self._CONST_NODES)
@@ -259,6 +256,8 @@ class CEmitter(QASMVisitor[None]):
             if not isinstance(s, exclude):
                 self.visit(s)
         self.emit("return 0;")
+        self._indent -= 1
+        self.emit("}")
         self._indent -= 1
         self.emit("}")
         return self.code()

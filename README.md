@@ -41,5 +41,6 @@ This produces a C++ file beginning with
 #include "qasm_common.hpp"
 ```
 
-which contains C++ functions for each gate and a `main` function implementing the quantum program.
+which contains C++ functions for each gate and a `circuit` function inside the
+`qasm` namespace implementing the quantum program.
 
