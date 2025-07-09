@@ -2,3 +2,5 @@ __pycache__/
 *.pyc
 tests/generated/
 
+
+openqasm/
