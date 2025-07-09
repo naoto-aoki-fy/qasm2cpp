@@ -226,6 +226,10 @@ class CEmitter(QASMVisitor[None]):
         self.emit("#include \"qasm_common.hpp\"")
         self.emit("")
 
+        self.emit("")
+        self.emit("namespace qasm {")
+        self._indent += 1
+
         # --- グローバル constexpr 生成 ---
         for s in node.statements:
             if isinstance(s, tuple(self._CONST_NODES)):
@@ -235,10 +239,6 @@ class CEmitter(QASMVisitor[None]):
         for s in node.statements:
             if hasattr(ast, "ExternDeclaration") and isinstance(s, ast.ExternDeclaration):
                 self.visit(s)
-
-        self.emit("")
-        self.emit("namespace qasm {")
-        self._indent += 1
 
         # gate / def 定義
         for s in node.statements:
