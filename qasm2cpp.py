@@ -3,8 +3,9 @@
 qasm2cpp.py ― OpenQASM 3 → C++‐like code translator
              （gate／def／for／if／cast／assign 2025-07 対応・新旧 AST 両対応）
 
-  * uint[N]     → QasmUint<N>
-  * bit[N]      → QasmBit<N>
+  * uint[N]     → qasm::uint<N>
+  * bit[N]      → qasm::bit<N>
+  * float[N]    → qasm::float_<N>
 
 Requirements:
     python -m pip install "openqasm3[parser]"
@@ -121,13 +122,13 @@ class CEmitter(QASMVisitor[None]):
     # ------------- 型
     def _ctype(self, ctype: ast.ClassicalType) -> str:  # noqa: C901
         if isinstance(ctype, ast.UintType) and ctype.size is not None:
-            return f"QasmUint<{self._expr(ctype.size)}>"
+            return f"qasm::uint<{self._expr(ctype.size)}>"
         if isinstance(ctype, ast.BitType) and ctype.size is not None:
-            return f"QasmBit<{self._expr(ctype.size)}>"
+            return f"qasm::bit<{self._expr(ctype.size)}>"
         if isinstance(ctype, ast.FloatType) and getattr(ctype, "size", None) is not None:
-            return f"QasmFloat<{self._expr(ctype.size)}>"
+            return f"qasm::float_<{self._expr(ctype.size)}>"
         if hasattr(ast, "AngleType") and isinstance(ctype, ast.AngleType) and getattr(ctype, "size", None) is not None:
-            return f"QasmFloat<{self._expr(ctype.size)}>"
+            return f"qasm::float_<{self._expr(ctype.size)}>"
         if isinstance(ctype, (ast.BitType, ast.IntType)):
             return "int"
         if isinstance(ctype, ast.UintType):
@@ -200,8 +201,8 @@ class CEmitter(QASMVisitor[None]):
             e = self._expr(idx.end)   if idx.end   else ""
             p = self._expr(idx.step)  if idx.step  else ""
             if p:
-                return f"QasmSlice({s}, {e}, {p})"
-            return f"QasmSlice({s}, {e})"
+                return f"qasm::slice({s}, {e}, {p})"
+            return f"qasm::slice({s}, {e})"
         if isinstance(idx, list) and len(idx) == 1:
             return self._expr(idx[0])
         return "<idx>"
@@ -258,7 +259,7 @@ class CEmitter(QASMVisitor[None]):
     # ---- gate 定義
     def visit_QuantumGateDefinition(self, node: GateDefNode):  # type: ignore[override]
         gname = node.name.name
-        qs = [f"qubit {q.name}" for q in node.qubits]
+        qs = [f"qasm::qubit {q.name}" for q in node.qubits]
         cs = [f"double {p.name}" for p in getattr(node, "arguments", [])]
         sig = ", ".join(qs + cs) or "void"
         self.emit(f"void qasm::{gname}({sig}) {{")
@@ -297,9 +298,9 @@ class CEmitter(QASMVisitor[None]):
 
             if is_qubit_arg:
                 if hasattr(p, "size") and p.size is not None:
-                    params.append(f"qubit {pname}[{self._expr(p.size)}]")
+                    params.append(f"qasm::qubit {pname}[{self._expr(p.size)}]")
                 else:
-                    params.append(f"qubit {pname}")
+                    params.append(f"qasm::qubit {pname}")
             else:
                 params.append(f"{self._ctype(ptype)} {pname}")
 
@@ -331,7 +332,7 @@ class CEmitter(QASMVisitor[None]):
 
     def visit_QubitDeclaration(self, node: ast.QubitDeclaration):
         size = self._expr(node.size) if node.size else "1"
-        self.emit(f"qubit {node.qubit.name}[{size}];")
+        self.emit(f"qasm::qubit {node.qubit.name}[{size}];")
 
     def visit_ClassicalDeclaration(self, node: ast.ClassicalDeclaration):  # noqa: C901
         ctype_str = self._ctype(node.type)
@@ -429,7 +430,7 @@ class CEmitter(QASMVisitor[None]):
                 vctype = self._ctype(node.type)
             elif hasattr(var, "type"):
                 vctype = self._ctype(var.type)
-            slice_expr = f"QasmSlice({start}, {end})" if step is None else f"QasmSlice({start}, {step}, {end})"
+            slice_expr = f"qasm::slice({start}, {end})" if step is None else f"qasm::slice({start}, {step}, {end})"
             self.emit(f"for ({vctype} {vname} : {slice_expr}) {{")
             self._indent += 1
         elif isinstance(itr, ast.DiscreteSet):
