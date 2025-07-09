@@ -36,8 +36,8 @@ python qasm2cpp.py openqasm/examples/adder.qasm > adder.cpp
 This produces a C++ file beginning with
 
 ```cpp
-#include <stdio.h>
-#include <math.h>
+#include <cstdio>
+#include <cmath>
 #include "qasm_common.hpp"
 ```
 
