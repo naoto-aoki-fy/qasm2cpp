@@ -5,6 +5,7 @@ qasm2cpp.py ― OpenQASM 3 → C++‐like code translator
 
   * uint[N]     → qasm::uint<N>
   * bit[N]      → qasm::bit<N>
+  * qubit[N]    → qasm::qubit<N>
   * float[N]    → qasm::float_<N>
 
 Requirements:
@@ -265,7 +266,7 @@ class CppEmitter(QASMVisitor[None]):
     # ---- gate 定義
     def visit_QuantumGateDefinition(self, node: GateDefNode):  # type: ignore[override]
         gname = node.name.name
-        qs = [f"qasm::qubit {q.name}" for q in node.qubits]
+        qs = [f"qasm::qubit<1> {q.name}" for q in node.qubits]
         cs = [f"double {p.name}" for p in getattr(node, "arguments", [])]
         sig = ", ".join(qs + cs) or "void"
         self.emit(f"void {gname}({sig}) {{")
@@ -303,10 +304,8 @@ class CppEmitter(QASMVisitor[None]):
                 is_qubit_arg = True
 
             if is_qubit_arg:
-                if hasattr(p, "size") and p.size is not None:
-                    params.append(f"qasm::qubit {pname}[{self._expr(p.size)}]")
-                else:
-                    params.append(f"qasm::qubit {pname}")
+                size = self._expr(p.size) if hasattr(p, "size") and p.size is not None else "1"
+                params.append(f"qasm::qubit<{size}> {pname}")
             else:
                 params.append(f"{self._ctype(ptype)} {pname}")
 
@@ -338,7 +337,7 @@ class CppEmitter(QASMVisitor[None]):
 
     def visit_QubitDeclaration(self, node: ast.QubitDeclaration):
         size = self._expr(node.size) if node.size else "1"
-        self.emit(f"qasm::qubit {node.qubit.name}[{size}];")
+        self.emit(f"qasm::qubit<{size}> {node.qubit.name};")
 
     def visit_ClassicalDeclaration(self, node: ast.ClassicalDeclaration):  # noqa: C901
         ctype_str = self._ctype(node.type)
