@@ -21,92 +21,91 @@ import openqasm3
 import openqasm3.ast as ast
 from openqasm3.visitor import QASMVisitor
 
-
-# --------------------------------------------------------------------
-# 定数置換
-# --------------------------------------------------------------------
-CONST_REPLACE = {"pi": "M_PI"}        # math.h の円周率マクロ
-
-# --------------------------------------------------------------------
-# 旧版フォールバック (名前 / 整数 → 記号)
-# --------------------------------------------------------------------
-_OLD_NAME_MAP = {
-    "ADD": "+", "SUB": "-", "MUL": "*",
-    "DIV": "/", "DIVIDE": "/", "SLASH": "/",
-    "MOD": "%", "MODULO": "%", "REM": "%",
-    "POW": "**",
-    "GT":  ">",  "LT":  "<",  "GE": ">=", "LE": "<=",
-    "EQ": "==",  "NE": "!=",
-    "LAND": "&&", "LOR": "||",
-    "BITOR": "|", "BITXOR": "^", "BITAND": "&",
-    "SHL": "<<", "SHR": ">>",
-}
-_OLD_VALUE_MAP = {
-     0:  ">",   1:  "<",   2: ">=",  3: "<=",
-     4: "==",   5: "!=",   6: "&&",  7: "||",
-     8:  "|",   9:  "^",  10:  "&", 11: "<<", 12: ">>",
-    13:  "+",  14: "-",  15:  "*", 16:  "/", 17:  "%",
-    18: "**",
-}
-
-# --------------------------------------------------------------------
-# Enum → 記号
-# --------------------------------------------------------------------
-_DYNAMIC_OPMAP: dict[ast.BinaryOperator | ast.UnaryOperator, str] = {
-    **{op: str(op).split('.', 1)[1] for op in ast.BinaryOperator},
-    **{op: str(op).split('.', 1)[1] for op in ast.UnaryOperator},
-}
-
-def op_str(op: ast.BinaryOperator | ast.UnaryOperator) -> str:
-    """OpenQASM 3 演算子 Enum → C 記号"""
-    if op in _DYNAMIC_OPMAP:
-        return _DYNAMIC_OPMAP[op]
-    if (n := getattr(op, 'name', None)) in _OLD_NAME_MAP:
-        return _OLD_NAME_MAP[n]
-    return _OLD_VALUE_MAP.get(op.value, '?')    # 旧版: 整数値
-
-# --------------------------------------------------------------------
-# AST 世代間互換 ― ノード名の差分を吸収
-# --------------------------------------------------------------------
-GateDefNode = getattr(ast, "QuantumGateDefinition",
-                      getattr(ast, "GateDeclaration", None))
-if GateDefNode is None:
-    raise RuntimeError("この openqasm3 には Gate 定義ノードが見当たりません。")
-
-_DEF_NODE_NAMES = (
-    "SubroutineDefinition",      # openqasm3 ≥0.11
-    "FunctionDefinition",        # openqasm3 ≥0.10
-    "DefStatement",              # 旧称
-)
-_DEF_NODES = [getattr(ast, n) for n in _DEF_NODE_NAMES if hasattr(ast, n)]
-
-_FOR_NODE_NAMES = ("ForInLoop", "ForStatement", "ForLoop")
-_IF_NODE_NAMES  = ("IfStatement", "ConditionalStatement", "BranchingStatement")
-CAST_NODE       = getattr(ast, "CastExpression",
-                  getattr(ast, "TypeCastExpression", None))
-
-_FOR_NODES = [getattr(ast, n) for n in _FOR_NODE_NAMES if hasattr(ast, n)]
-_IF_NODES  = [getattr(ast, n) for n in _IF_NODE_NAMES  if hasattr(ast, n)]
-
-_CONST_NODE_NAMES = (
-    "ConstantDeclaration",     # openqasm3 ≥0.10
-    "ConstDeclaration",        # 旧称
-    "ConstantDefinition",      # 派生実装の別名
-)
-_CONST_NODES = [getattr(ast, n) for n in _CONST_NODE_NAMES if hasattr(ast, n)]
-
-# ----------  ★ Assignment ノード名を拡充 (2025-07)  ----------
-_ASSIGN_NODE_NAMES = (
-    "AssignmentStatement", "UpdateStatement", "SetStatement", "Assignment",
-    "ClassicalAssignment",              # 新 AST
-    "AssignmentExpression",             # ExpressionStatement から検出
-)
-_ASSIGN_NODES = [getattr(ast, n) for n in _ASSIGN_NODE_NAMES if hasattr(ast, n)]
-
 # --------------------------------------------------------------------
 # C++‐like コード出力
 # --------------------------------------------------------------------
 class CEmitter(QASMVisitor[None]):
+    # ------------------------------------------------------------------
+    # 定数置換
+    # ------------------------------------------------------------------
+    CONST_REPLACE = {"pi": "M_PI"}        # math.h の円周率マクロ
+
+    # ------------------------------------------------------------------
+    # 旧版フォールバック (名前 / 整数 → 記号)
+    # ------------------------------------------------------------------
+    _OLD_NAME_MAP = {
+        "ADD": "+", "SUB": "-", "MUL": "*",
+        "DIV": "/", "DIVIDE": "/", "SLASH": "/",
+        "MOD": "%", "MODULO": "%", "REM": "%",
+        "POW": "**",
+        "GT":  ">",  "LT":  "<",  "GE": ">=", "LE": "<=",
+        "EQ": "==",  "NE": "!=",
+        "LAND": "&&", "LOR": "||",
+        "BITOR": "|", "BITXOR": "^", "BITAND": "&",
+        "SHL": "<<", "SHR": ">>",
+    }
+    _OLD_VALUE_MAP = {
+         0:  ">",   1:  "<",   2: ">=",  3: "<=",
+         4: "==",   5: "!=",   6: "&&",  7: "||",
+         8:  "|",   9:  "^",  10:  "&", 11: "<<", 12: ">>",
+        13:  "+",  14: "-",  15:  "*", 16:  "/", 17:  "%",
+        18: "**",
+    }
+
+    # ------------------------------------------------------------------
+    # Enum → 記号
+    # ------------------------------------------------------------------
+    _DYNAMIC_OPMAP: dict[ast.BinaryOperator | ast.UnaryOperator, str] = {
+        **{op: str(op).split('.', 1)[1] for op in ast.BinaryOperator},
+        **{op: str(op).split('.', 1)[1] for op in ast.UnaryOperator},
+    }
+
+    @staticmethod
+    def op_str(op: ast.BinaryOperator | ast.UnaryOperator) -> str:
+        """OpenQASM 3 演算子 Enum → C 記号"""
+        if op in CEmitter._DYNAMIC_OPMAP:
+            return CEmitter._DYNAMIC_OPMAP[op]
+        if (n := getattr(op, 'name', None)) in CEmitter._OLD_NAME_MAP:
+            return CEmitter._OLD_NAME_MAP[n]
+        return CEmitter._OLD_VALUE_MAP.get(op.value, '?')    # 旧版: 整数値
+
+    # ------------------------------------------------------------------
+    # AST 世代間互換 ― ノード名の差分を吸収
+    # ------------------------------------------------------------------
+    GateDefNode = getattr(ast, "QuantumGateDefinition",
+                          getattr(ast, "GateDeclaration", None))
+    if GateDefNode is None:
+        raise RuntimeError("この openqasm3 には Gate 定義ノードが見当たりません。")
+
+    _DEF_NODE_NAMES = (
+        "SubroutineDefinition",      # openqasm3 ≥0.11
+        "FunctionDefinition",        # openqasm3 ≥0.10
+        "DefStatement",              # 旧称
+    )
+    _DEF_NODES = [getattr(ast, n) for n in _DEF_NODE_NAMES if hasattr(ast, n)]
+
+    _FOR_NODE_NAMES = ("ForInLoop", "ForStatement", "ForLoop")
+    _IF_NODE_NAMES  = ("IfStatement", "ConditionalStatement", "BranchingStatement")
+    CAST_NODE       = getattr(ast, "CastExpression",
+                        getattr(ast, "TypeCastExpression", None))
+
+    _FOR_NODES = [getattr(ast, n) for n in _FOR_NODE_NAMES if hasattr(ast, n)]
+    _IF_NODES  = [getattr(ast, n) for n in _IF_NODE_NAMES  if hasattr(ast, n)]
+
+    _CONST_NODE_NAMES = (
+        "ConstantDeclaration",     # openqasm3 ≥0.10
+        "ConstDeclaration",        # 旧称
+        "ConstantDefinition",      # 派生実装の別名
+    )
+    _CONST_NODES = [getattr(ast, n) for n in _CONST_NODE_NAMES if hasattr(ast, n)]
+
+    # ----------  ★ Assignment ノード名を拡充 (2025-07)  ----------
+    _ASSIGN_NODE_NAMES = (
+        "AssignmentStatement", "UpdateStatement", "SetStatement", "Assignment",
+        "ClassicalAssignment",              # 新 AST
+        "AssignmentExpression",             # ExpressionStatement から検出
+    )
+    _ASSIGN_NODES = [getattr(ast, n) for n in _ASSIGN_NODE_NAMES if hasattr(ast, n)]
     def __init__(self) -> None:
         self.lines: list[str] = []
         self._indent = 0
@@ -145,7 +144,7 @@ class CEmitter(QASMVisitor[None]):
     def _expr(self, expr: ast.Expression):  # noqa: C901
         # 型キャスト
         if (
-            (CAST_NODE and isinstance(expr, CAST_NODE))
+            (self.CAST_NODE and isinstance(expr, self.CAST_NODE))
             or (hasattr(ast, "Cast") and isinstance(expr, ast.Cast))
         ):
             tgt   = getattr(expr, "type",
@@ -158,22 +157,22 @@ class CEmitter(QASMVisitor[None]):
                 return f"(({self._ctype(tgt)})({self._expr(inner)}))"
 
         # ----------  ★ AssignmentExpression も式として扱う  ----------
-        if "AssignmentExpression" in _ASSIGN_NODE_NAMES and isinstance(expr, getattr(ast, "AssignmentExpression", ())):
+        if "AssignmentExpression" in self._ASSIGN_NODE_NAMES and isinstance(expr, getattr(ast, "AssignmentExpression", ())):
             lval = self._expr(expr.lvalue)
             rval = self._expr(expr.rvalue)
             return f"({lval} = {rval})"
 
         match expr:
             case ast.Identifier(name=n):
-                return CONST_REPLACE.get(n, n)
+                return self.CONST_REPLACE.get(n, n)
             case ast.IntegerLiteral(value=v) | ast.FloatLiteral(value=v):
                 return str(v)
             case ast.BooleanLiteral(value=v):
                 return "true" if v else "false"
             case ast.UnaryExpression(op=o, expression=e):
-                return f"{op_str(o)}{self._expr(e)}"
+                return f"{self.op_str(o)}{self._expr(e)}"
             case ast.BinaryExpression(op=o, lhs=l, rhs=r):
-                return f"{self._expr(l)} {op_str(o)} {self._expr(r)}"
+                return f"{self._expr(l)} {self.op_str(o)} {self._expr(r)}"
             case ast.FunctionCall(name=ast.Identifier(name=n), arguments=args):
                 prefix = "" if n in self.extern_names else "qasm::"
                 return f"{prefix}{n}(" + ", ".join(self._expr(a) for a in args) + ")"
@@ -229,7 +228,7 @@ class CEmitter(QASMVisitor[None]):
 
         # --- グローバル constexpr 生成 ---
         for s in node.statements:
-            if isinstance(s, tuple(_CONST_NODES)):
+            if isinstance(s, tuple(self._CONST_NODES)):
                 self.visit(s)
 
         # extern 宣言
@@ -239,13 +238,13 @@ class CEmitter(QASMVisitor[None]):
 
         # gate / def 前方宣言
         for s in node.statements:
-            if isinstance(s, (GateDefNode, * _DEF_NODES)):
+            if isinstance(s, (self.GateDefNode, * self._DEF_NODES)):
                 self.visit(s)
 
         self.emit("int main(void) {")
         self._indent += 1
         extern_cls = getattr(ast, "ExternDeclaration", None)
-        exclude = (GateDefNode, *_DEF_NODES, *_CONST_NODES)
+        exclude = (self.GateDefNode, *self._DEF_NODES, *self._CONST_NODES)
         if extern_cls is not None:
             exclude = (*exclude, extern_cls)
         for s in node.statements:
