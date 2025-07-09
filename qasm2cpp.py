@@ -24,7 +24,7 @@ from openqasm3.visitor import QASMVisitor
 # --------------------------------------------------------------------
 # C++‐like コード出力
 # --------------------------------------------------------------------
-class CEmitter(QASMVisitor[None]):
+class CppEmitter(QASMVisitor[None]):
     # ------------------------------------------------------------------
     # 定数置換
     # ------------------------------------------------------------------
@@ -63,11 +63,11 @@ class CEmitter(QASMVisitor[None]):
     @staticmethod
     def op_str(op: ast.BinaryOperator | ast.UnaryOperator) -> str:
         """OpenQASM 3 演算子 Enum → C 記号"""
-        if op in CEmitter._DYNAMIC_OPMAP:
-            return CEmitter._DYNAMIC_OPMAP[op]
-        if (n := getattr(op, 'name', None)) in CEmitter._OLD_NAME_MAP:
-            return CEmitter._OLD_NAME_MAP[n]
-        return CEmitter._OLD_VALUE_MAP.get(op.value, '?')    # 旧版: 整数値
+        if op in CppEmitter._DYNAMIC_OPMAP:
+            return CppEmitter._DYNAMIC_OPMAP[op]
+        if (n := getattr(op, 'name', None)) in CppEmitter._OLD_NAME_MAP:
+            return CppEmitter._OLD_NAME_MAP[n]
+        return CppEmitter._OLD_VALUE_MAP.get(op.value, '?')    # 旧版: 整数値
 
     # ------------------------------------------------------------------
     # AST 世代間互換 ― ノード名の差分を吸収
@@ -491,7 +491,7 @@ class CEmitter(QASMVisitor[None]):
 # --------------------------------------------------------------------
 def translate(qasm_src: str) -> str:
     program = openqasm3.parse(qasm_src)
-    return CEmitter().visit(program)
+    return CppEmitter().visit(program)
 
 
 def main() -> None:
