@@ -236,10 +236,18 @@ class CEmitter(QASMVisitor[None]):
             if hasattr(ast, "ExternDeclaration") and isinstance(s, ast.ExternDeclaration):
                 self.visit(s)
 
-        # gate / def 前方宣言
+        self.emit("")
+        self.emit("namespace qasm {")
+        self._indent += 1
+
+        # gate / def 定義
         for s in node.statements:
             if isinstance(s, (self.GateDefNode, * self._DEF_NODES)):
                 self.visit(s)
+
+        self._indent -= 1
+        self.emit("}")
+        self.emit("")
 
         self.emit("int main(void) {")
         self._indent += 1
@@ -261,7 +269,7 @@ class CEmitter(QASMVisitor[None]):
         qs = [f"qasm::qubit {q.name}" for q in node.qubits]
         cs = [f"double {p.name}" for p in getattr(node, "arguments", [])]
         sig = ", ".join(qs + cs) or "void"
-        self.emit(f"void qasm::{gname}({sig}) {{")
+        self.emit(f"void {gname}({sig}) {{")
         self._indent += 1
         for s in node.body:
             self.visit(s)
@@ -305,7 +313,7 @@ class CEmitter(QASMVisitor[None]):
 
         sig = ", ".join(params) if params else "void"
         rtype = self._ctype(getattr(node, "return_type", None)) if getattr(node, "return_type", None) else "void"
-        self.emit(f"{rtype} qasm::{fname}({sig}) {{")
+        self.emit(f"{rtype} {fname}({sig}) {{")
         self._indent += 1
         body = getattr(node, "body",
                        getattr(node, "program",
