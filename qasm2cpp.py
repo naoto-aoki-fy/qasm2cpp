@@ -266,7 +266,7 @@ class CppEmitter(QASMVisitor[None]):
     # ---- gate 定義
     def visit_QuantumGateDefinition(self, node: GateDefNode):  # type: ignore[override]
         gname = node.name.name
-        qs = [f"qasm::qubit<1> {q.name}" for q in node.qubits]
+        qs = [f"qasm::qubit<> {q.name}" for q in node.qubits]
         cs = [f"double {p.name}" for p in getattr(node, "arguments", [])]
         sig = ", ".join(qs + cs) or "void"
         self.emit(f"void {gname}({sig}) {{")
@@ -304,7 +304,7 @@ class CppEmitter(QASMVisitor[None]):
                 is_qubit_arg = True
 
             if is_qubit_arg:
-                size = self._expr(p.size) if hasattr(p, "size") and p.size is not None else "1"
+                size = self._expr(p.size) if hasattr(p, "size") and p.size is not None else ""
                 params.append(f"qasm::qubit<{size}> {pname}")
             else:
                 params.append(f"{self._ctype(ptype)} {pname}")
@@ -336,7 +336,7 @@ class CppEmitter(QASMVisitor[None]):
         self.emit(f"extern {rtype} {name}({params});")
 
     def visit_QubitDeclaration(self, node: ast.QubitDeclaration):
-        size = self._expr(node.size) if node.size else "1"
+        size = self._expr(node.size) if node.size else ""
         self.emit(f"qasm::qubit<{size}> {node.qubit.name};")
 
     def visit_ClassicalDeclaration(self, node: ast.ClassicalDeclaration):  # noqa: C901

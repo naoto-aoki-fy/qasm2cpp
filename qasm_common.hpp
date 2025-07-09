@@ -2,9 +2,11 @@
 
 namespace qasm {
 
-template<int size>
+template<int size = -1>
 struct qubit {
     qubit<1> operator[](int n) const;
+    template<int size_new>
+    operator qubit<size_new>() const;
 };
 
 struct slice {
@@ -31,20 +33,22 @@ struct uint {
 };
 
 template<int size>
-struct float_ { };
+struct float_ { double value; };
 
 
-template<int A, int B>
-void cx(qubit<A>, qubit<B>);
-template<int A>
-void h(qubit<A>);
-template<int A>
-void s(qubit<A>);
-template<int Q, int F>
-void ry(qubit<Q>, float_<F>);
+void cx(qubit<1>, qubit<1>);
+
+void h(qubit<1>);
+
+void s(qubit<1>);
+
+template<int F>
+void ry(qubit<1>, float_<F>);
+
 template<int A>
 void reset(qubit<A>);
 
 template<int A>
 int measure(qubit<A>);
+
 } // namespace qasm
