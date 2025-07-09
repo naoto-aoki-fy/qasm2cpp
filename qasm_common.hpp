@@ -1,42 +1,43 @@
 #include <vector>
 
+namespace qasm {
+
 struct qubit {
     qubit operator[](int n) const;
 };
 
-struct QasmSlice {
-    QasmSlice(int a, int b);
-    QasmSlice(int a, int b, int c);
+struct slice {
+    slice(int a, int b);
+    slice(int a, int b, int c);
     std::vector<int>::const_iterator begin() const;
     std::vector<int>::const_iterator end() const;
 };
 
 template<int size>
-struct QasmBit {
-    QasmUint(unsigned int);
+struct bit {
+    uint(unsigned int);
     int operator[](int n) const;
 };
 
 template<int size>
-struct QasmUint {
-    QasmUint();
-    QasmUint(unsigned int);
+struct uint {
+    uint();
+    uint(unsigned int);
     int operator[](int n) const;
     int operator+(int n) const;
-    friend int operator+(int lhs, QasmUint const rhs);
+    friend int operator+(int lhs, uint const rhs);
     constexpr operator int() const noexcept;
 };
 
 template<int size>
-struct QasmFloat { };
+struct float_ { };
 
 
-namespace qasm {
 void cx(qubit, qubit);
 void h(qubit);
 void s(qubit);
 template<int size>
-void ry(qubit, QasmFloat<size>);
+void ry(qubit, float_<size>);
 void reset(qubit);
 
 int measure(qubit);
