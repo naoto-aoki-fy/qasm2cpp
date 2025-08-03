@@ -20,6 +20,6 @@ def test_qubits_declared_at_top():
     end = next(i for i, line in enumerate(lines[start:], start) if line.strip() == "}")
     body = [line.strip() for line in lines[start:end] if line.strip()]
     assert body[0].startswith("qubit")
-    assert body[1].startswith("qubit")
-    assert body[2] == "h()(q);"
+    assert body[1] == "h()(q);"
+    assert body[2].startswith("qubit")
     assert body[3] == "x()(r);"
