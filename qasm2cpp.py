@@ -221,26 +221,40 @@ class CppEmitter(QASMVisitor[None]):
     def visit_Program(self, node: ast.Program):
         self.emit('#include "qasm.hpp"')
         self.emit("")
+
+        extern_stmts: list[ast.ExternDeclaration] = []
+        def_stmts: list = []
+        gate_stmts: list[CppEmitter.GateDefNode] = []  # type: ignore[attr-defined]
+        other_stmts: list = []
+
+        for s in node.statements:
+            if isinstance(s, ast.ExternDeclaration):
+                extern_stmts.append(s)
+            elif any(isinstance(s, cls) for cls in self._DEF_NODES):
+                def_stmts.append(s)
+            elif isinstance(s, self.GateDefNode):
+                gate_stmts.append(s)
+            else:
+                other_stmts.append(s)
+
+        for s in extern_stmts:
+            self.visit(s)
+        for s in gate_stmts:
+            self.visit(s)
+
+        self.emit("")
         self.emit("class userqasm : public qasm::qasm")
         self.emit("{")
         self.emit("public:")
         self._indent += 1
+
+        for s in def_stmts:
+            self.visit(s)
+
         self.emit("void circuit() {")
         self._indent += 1
         self.emit("using namespace qasm;")
         self.emit("")
-
-        qubit_cls = getattr(ast, "QubitDeclaration", None)
-        qubit_decls: list[ast.QubitDeclaration] = []  # type: ignore[name-defined]
-        other_stmts = []
-        for s in node.statements:
-            if qubit_cls is not None and isinstance(s, qubit_cls):
-                qubit_decls.append(s)
-            else:
-                other_stmts.append(s)
-
-        for q in qubit_decls:
-            self.visit(q)
         for s in other_stmts:
             self.visit(s)
 
@@ -256,16 +270,7 @@ class CppEmitter(QASMVisitor[None]):
     # ---- gate 定義
     def visit_QuantumGateDefinition(self, node: GateDefNode):  # type: ignore[override]
         gname = node.name.name
-        qs = [f"qubit<> {q.name}" for q in node.qubits]
-        cs = [f"double {p.name}" for p in getattr(node, "arguments", [])]
-        sig = ", ".join(qs + cs) or "void"
-        self.emit(f"void {gname}({sig}) {{")
-        self._indent += 1
-        for s in node.body:
-            self.visit(s)
-        self._indent -= 1
-        self.emit("}")
-        self.emit("")
+        self.emit(f"/* gate {gname} not supported */")
 
     # ---- def / function / subroutine
     def _visit_def_common(self, node):  # noqa: C901
