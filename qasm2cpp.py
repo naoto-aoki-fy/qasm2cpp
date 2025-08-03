@@ -249,13 +249,29 @@ class CppEmitter(QASMVisitor[None]):
         # Generate the translated circuit as a function within the qasm namespace
         self.emit("int circuit(void) {")
         self._indent += 1
+
+        # --- Move qubit declarations to the top of the circuit ---
         extern_cls = getattr(ast, "ExternDeclaration", None)
+        qubit_cls = getattr(ast, "QubitDeclaration", None)
         exclude = (self.GateDefNode, *self._DEF_NODES, *self._CONST_NODES)
         if extern_cls is not None:
             exclude = (*exclude, extern_cls)
+
+        qubit_decls: list[ast.QubitDeclaration] = []  # type: ignore[name-defined]
+        other_stmts = []
         for s in node.statements:
-            if not isinstance(s, exclude):
-                self.visit(s)
+            if isinstance(s, exclude):
+                continue
+            if qubit_cls is not None and isinstance(s, qubit_cls):
+                qubit_decls.append(s)
+            else:
+                other_stmts.append(s)
+
+        for q in qubit_decls:
+            self.visit(q)
+        for s in other_stmts:
+            self.visit(s)
+
         self.emit("return 0;")
         self._indent -= 1
         self.emit("}")
