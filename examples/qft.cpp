@@ -1,5 +1,6 @@
 #include "qasm.hpp"
 
+
 class userqasm : public qasm::qasm
 {
 public:
