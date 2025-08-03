@@ -23,7 +23,7 @@ def test_qasm2cpp_conversion(qasm_file: Path):
         text=True,
     )
     assert result.returncode == 0, result.stderr
-    assert "int circuit" in result.stdout
+    assert "class userqasm" in result.stdout
 
     out_file = OUTPUT_DIR / f"{qasm_file.stem}.cpp"
     out_file.write_text(result.stdout)

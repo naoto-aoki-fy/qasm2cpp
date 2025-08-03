@@ -1,6 +1,6 @@
 # qasm2cpp
 
-This repository contains a simple translator from [OpenQASM 3](https://openqasm.github.io/) to C++‑like code.  The `qasm2cpp.py` script reads an OpenQASM file and prints C++ source that relies on a minimal runtime provided in `qasm_common.hpp`.
+This repository contains a simple translator from [OpenQASM 3](https://openqasm.github.io/) to C++‑like code.  The `qasm2cpp.py` script reads an OpenQASM file and prints C++ source that relies on a minimal runtime provided in `qasm.hpp`.
 
 The folder `openqasm` is a copy of the official OpenQASM specification and examples for reference.  Only the translator script and the small header in this directory are required to use the converter.
 
@@ -23,7 +23,7 @@ python qasm2cpp.py < input.qasm > output.cpp
 python qasm2cpp.py input.qasm > output.cpp
 ```
 
-The generated code includes `qasm_common.hpp` and calls functions such as `qasm::cx`, `qasm::h` or `qasm::measure`.  These are declared in the header as stubs so the output can be compiled or further adapted.
+The generated code includes `qasm.hpp` and produces a small subclass of `qasm::qasm` with a `circuit` method.  Quantum operations are emitted using the fluent gate API, for example `h()(q);` or `(ctrl(2) * h())(q[0], q[1], q[2]);`.
 
 ## Example
 
@@ -36,11 +36,18 @@ python qasm2cpp.py openqasm/examples/adder.qasm > adder.cpp
 This produces a C++ file beginning with
 
 ```cpp
-#include <cstdio>
-#include <cmath>
-#include "qasm_common.hpp"
+#include "qasm.hpp"
+
+class userqasm : public qasm::qasm {
+public:
+    void circuit() {
+        using namespace qasm;
+        // ...
+    }
+};
+
+extern "C" qasm::qasm* constructor() { return new userqasm(); }
 ```
 
-which contains C++ functions for each gate and a `circuit` function inside the
-`qasm` namespace implementing the quantum program.
+The `circuit` method contains the translated quantum program.
 

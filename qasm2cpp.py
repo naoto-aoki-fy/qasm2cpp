@@ -122,13 +122,13 @@ class CppEmitter(QASMVisitor[None]):
     # ------------- 型
     def _ctype(self, ctype: ast.ClassicalType) -> str:  # noqa: C901
         if isinstance(ctype, ast.UintType) and ctype.size is not None:
-            return f"qasm::uint<{self._expr(ctype.size)}>"
+            return f"uint<{self._expr(ctype.size)}>"
         if isinstance(ctype, ast.BitType) and ctype.size is not None:
-            return f"qasm::bit<{self._expr(ctype.size)}>"
+            return f"bit<{self._expr(ctype.size)}>"
         if isinstance(ctype, ast.FloatType) and getattr(ctype, "size", None) is not None:
-            return f"qasm::float_<{self._expr(ctype.size)}>"
+            return f"float_<{self._expr(ctype.size)}>"
         if hasattr(ast, "AngleType") and isinstance(ctype, ast.AngleType) and getattr(ctype, "size", None) is not None:
-            return f"qasm::float_<{self._expr(ctype.size)}>"
+            return f"float_<{self._expr(ctype.size)}>"
         if isinstance(ctype, (ast.BitType, ast.IntType)):
             return "int"
         if isinstance(ctype, ast.UintType):
@@ -175,17 +175,14 @@ class CppEmitter(QASMVisitor[None]):
             case ast.BinaryExpression(op=o, lhs=l, rhs=r):
                 return f"{self._expr(l)} {self.op_str(o)} {self._expr(r)}"
             case ast.FunctionCall(name=ast.Identifier(name=n), arguments=args):
-                prefix = "" if n in self.extern_names else "qasm::"
-                return f"{prefix}{n}(" + ", ".join(self._expr(a) for a in args) + ")"
+                return f"{n}(" + ", ".join(self._expr(a) for a in args) + ")"
             case _ if hasattr(ast, "CallExpression") and isinstance(expr, ast.CallExpression):
                 callee = getattr(expr, "callee", None)
                 args   = getattr(expr, "arguments", [])
                 callee_str = self._expr(callee) if not isinstance(callee, ast.Identifier) else callee.name
-                if isinstance(callee, ast.Identifier) and callee_str not in self.extern_names:
-                    callee_str = f"qasm::{callee_str}"
                 return f"{callee_str}(" + ", ".join(self._expr(a) for a in args) + ")"
             case ast.QuantumMeasurement(qubit=q):
-                return f"qasm::measure({self._qubit(q)})"
+                return f"measure({self._qubit(q)})"
             case ast.IndexExpression(collection=c, index=i):
                 return f"{self._expr(c)}[{self._index(i)}]"
             case ast.RangeDefinition():
@@ -201,8 +198,8 @@ class CppEmitter(QASMVisitor[None]):
             e = self._expr(idx.end)   if idx.end   else ""
             p = self._expr(idx.step)  if idx.step  else ""
             if p:
-                return f"qasm::slice({s}, {e}, {p})"
-            return f"qasm::slice({s}, {e})"
+                return f"slice({s}, {e}, {p})"
+            return f"slice({s}, {e})"
         if isinstance(idx, list) and len(idx) == 1:
             return self._expr(idx[0])
         return "<idx>"
@@ -222,46 +219,21 @@ class CppEmitter(QASMVisitor[None]):
     # visitor 実装
     # ----------------------------------------------------------------
     def visit_Program(self, node: ast.Program):
-        self.emit("#include <cstdio>")
-        self.emit("#include <cmath>")
-        self.emit("#include \"qasm_common.hpp\"")
+        self.emit('#include "qasm.hpp"')
+        self.emit("")
+        self.emit("class userqasm : public qasm::qasm")
+        self.emit("{")
+        self.emit("public:")
+        self._indent += 1
+        self.emit("void circuit() {")
+        self._indent += 1
+        self.emit("using namespace qasm;")
         self.emit("")
 
-        self.emit("")
-        self.emit("namespace qasm {")
-        self._indent += 1
-
-        # --- グローバル constexpr 生成 ---
-        for s in node.statements:
-            if isinstance(s, tuple(self._CONST_NODES)):
-                self.visit(s)
-
-        # extern 宣言
-        for s in node.statements:
-            if hasattr(ast, "ExternDeclaration") and isinstance(s, ast.ExternDeclaration):
-                self.visit(s)
-
-        # gate / def 定義
-        for s in node.statements:
-            if isinstance(s, (self.GateDefNode, * self._DEF_NODES)):
-                self.visit(s)
-
-        # Generate the translated circuit as a function within the qasm namespace
-        self.emit("int circuit(void) {")
-        self._indent += 1
-
-        # --- Move qubit declarations to the top of the circuit ---
-        extern_cls = getattr(ast, "ExternDeclaration", None)
         qubit_cls = getattr(ast, "QubitDeclaration", None)
-        exclude = (self.GateDefNode, *self._DEF_NODES, *self._CONST_NODES)
-        if extern_cls is not None:
-            exclude = (*exclude, extern_cls)
-
         qubit_decls: list[ast.QubitDeclaration] = []  # type: ignore[name-defined]
         other_stmts = []
         for s in node.statements:
-            if isinstance(s, exclude):
-                continue
             if qubit_cls is not None and isinstance(s, qubit_cls):
                 qubit_decls.append(s)
             else:
@@ -272,17 +244,19 @@ class CppEmitter(QASMVisitor[None]):
         for s in other_stmts:
             self.visit(s)
 
-        self.emit("return 0;")
+        self.emit("")
         self._indent -= 1
         self.emit("}")
         self._indent -= 1
-        self.emit("}")
+        self.emit("};")
+        self.emit("")
+        self.emit('extern "C" qasm::qasm* constructor() { return new userqasm(); }')
         return self.code()
 
     # ---- gate 定義
     def visit_QuantumGateDefinition(self, node: GateDefNode):  # type: ignore[override]
         gname = node.name.name
-        qs = [f"qasm::qubit<> {q.name}" for q in node.qubits]
+        qs = [f"qubit<> {q.name}" for q in node.qubits]
         cs = [f"double {p.name}" for p in getattr(node, "arguments", [])]
         sig = ", ".join(qs + cs) or "void"
         self.emit(f"void {gname}({sig}) {{")
@@ -321,7 +295,7 @@ class CppEmitter(QASMVisitor[None]):
 
             if is_qubit_arg:
                 size = self._expr(p.size) if hasattr(p, "size") and p.size is not None else ""
-                params.append(f"qasm::qubit<{size}> {pname}")
+                params.append(f"qubit<{size}> {pname}")
             else:
                 params.append(f"{self._ctype(ptype)} {pname}")
 
@@ -352,8 +326,11 @@ class CppEmitter(QASMVisitor[None]):
         self.emit(f"extern {rtype} {name}({params});")
 
     def visit_QubitDeclaration(self, node: ast.QubitDeclaration):
-        size = self._expr(node.size) if node.size else ""
-        self.emit(f"qasm::qubit<{size}> {node.qubit.name};")
+        size = self._expr(node.size) if node.size else None
+        if size:
+            self.emit(f"qubits {node.qubit.name} = qalloc({size});")
+        else:
+            self.emit(f"qubit {node.qubit.name} = qalloc();")
 
     def visit_ClassicalDeclaration(self, node: ast.ClassicalDeclaration):  # noqa: C901
         ctype_str = self._ctype(node.type)
@@ -369,7 +346,7 @@ class CppEmitter(QASMVisitor[None]):
 
         if node.init_expression is not None:
             rhs = (str(node.init_expression.value) if is_template_uint and isinstance(node.init_expression, ast.IntegerLiteral)
-                   else f"qasm::measure({self._qubit(node.init_expression.qubit)})"
+                   else f"measure({self._qubit(node.init_expression.qubit)})"
                    if isinstance(node.init_expression, ast.QuantumMeasurement)
                    else self._expr(node.init_expression))
             self.emit(f"{ctype_str} {name}{arr} = {rhs};")
@@ -381,17 +358,15 @@ class CppEmitter(QASMVisitor[None]):
         gname = node.name.name
         qargs = ", ".join(self._qubit(q) for q in node.qubits)
         params = ", ".join(self._expr(a) for a in node.arguments)
-        arglist = ", ".join(x for x in (qargs, params) if x)
-        prefix = "" if gname in self.extern_names else "qasm::"
-        self.emit(f"{prefix}{gname}({arglist});")
+        self.emit(f"{gname}({params})({qargs});")
 
     def visit_QuantumMeasurementStatement(self, node: ast.QuantumMeasurementStatement):
         src = self._qubit(node.measure.qubit)
         if node.target:
             tgt = self._qubit(node.target)
-            self.emit(f"{tgt} = qasm::measure({src});")
+            self.emit(f"{tgt} = measure({src});")
         else:
-            self.emit(f"qasm::measure({src});")
+            self.emit(f"measure({src});")
 
     def visit_ReturnStatement(self, node: ast.ReturnStatement):
         expr = self._expr(node.expression) if getattr(node, "expression", None) else ""
@@ -402,7 +377,7 @@ class CppEmitter(QASMVisitor[None]):
         self.emit(f"/* barrier {qs} */")
 
     def visit_QuantumReset(self, node: ast.QuantumReset):
-        self.emit(f"qasm::reset({self._qubit(node.qubits)});")
+        self.emit(f"reset({self._qubit(node.qubits)});")
 
     # ---------- if / for（世代差分を共通処理に集約） ----------
     def _visit_if_common(self, node):
@@ -451,7 +426,7 @@ class CppEmitter(QASMVisitor[None]):
                 vctype = self._ctype(node.type)
             elif hasattr(var, "type"):
                 vctype = self._ctype(var.type)
-            slice_expr = f"qasm::slice({start}, {end})" if step is None else f"qasm::slice({start}, {step}, {end})"
+            slice_expr = f"slice({start}, {end})" if step is None else f"slice({start}, {step}, {end})"
             self.emit(f"for ({vctype} {vname} : {slice_expr}) {{")
             self._indent += 1
         elif isinstance(itr, ast.DiscreteSet):

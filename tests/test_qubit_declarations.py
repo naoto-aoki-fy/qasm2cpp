@@ -13,13 +13,13 @@ def test_qubits_declared_at_top():
     )
     assert result.returncode == 0, result.stderr
     code = result.stdout
-    assert "int circuit" in code
+    assert "class userqasm" in code
 
     lines = code.splitlines()
-    start = next(i for i, line in enumerate(lines) if line.strip() == "int circuit(void) {") + 1
-    end = next(i for i, line in enumerate(lines) if line.strip() == "return 0;")
+    start = next(i for i, line in enumerate(lines) if line.strip() == "using namespace qasm;") + 1
+    end = next(i for i, line in enumerate(lines[start:], start) if line.strip() == "}")
     body = [line.strip() for line in lines[start:end] if line.strip()]
-    assert body[0].startswith("qasm::qubit")
-    assert body[1].startswith("qasm::qubit")
-    assert body[2] == "qasm::h(q);"
-    assert body[3] == "qasm::x(r);"
+    assert body[0].startswith("qubit")
+    assert body[1].startswith("qubit")
+    assert body[2] == "h()(q);"
+    assert body[3] == "x()(r);"
