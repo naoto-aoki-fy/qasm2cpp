@@ -10,17 +10,23 @@ class userqasm : public qasm::qasm
 {
 public:
     int xmeasure(qubit<> q) {
+        using namespace qasm;
+        
         h()(q);
         return measure(q);
     }
     
     int ymeasure(qubit<> q) {
+        using namespace qasm;
+        
         s()(q);
         h()(q);
         return measure(q);
     }
     
     int pauli_measurement(bit<2 * n> spec, qubit<n> q) {
+        using namespace qasm;
+        
         int b = 0;
         for (uint<prec> i : slice(0, n - 1)) {
             int temp;
@@ -39,6 +45,8 @@ public:
     }
     
     void trial_circuit(qubit<n> q) {
+        using namespace qasm;
+        
         for (int l : slice(0, layers - 1)) {
             for (uint<prec> i : slice(0, n - 1)) {
                 float_<prec> theta;
@@ -52,6 +60,8 @@ public:
     }
     
     uint<prec> counts_for_term(bit<2 * n> spec, qubit<n> q) {
+        using namespace qasm;
+        
         uint<prec> counts;
         for (unsigned int i : slice(1, shots)) {
             int b;
@@ -64,6 +74,8 @@ public:
     }
     
     float_<prec> estimate_energy(qubit<n> q) {
+        using namespace qasm;
+        
         float_<prec> energy;
         uint<prec> npaulis = get_npaulis();
         for (int t : slice(0, npaulis - 1)) {
