@@ -308,6 +308,8 @@ class CppEmitter(QASMVisitor[None]):
         rtype = self._ctype(getattr(node, "return_type", None)) if getattr(node, "return_type", None) else "void"
         self.emit(f"{rtype} {fname}({sig}) {{")
         self._indent += 1
+        self.emit("using namespace qasm;")
+        self.emit("")
         body = getattr(node, "body",
                        getattr(node, "program",
                        getattr(node, "block", [])))

@@ -28,6 +28,9 @@ def test_def_as_method_and_extern_global():
             method_lines.append(stripped)
     assert method_lines[0].startswith("void bar")
 
+    bar_idx = next(i for i, line in enumerate(lines) if line.strip().startswith("void bar"))
+    assert lines[bar_idx + 1].strip() == "using namespace qasm;"
+
     start = next(
         i for i, line in enumerate(lines[circuit_idx:], circuit_idx) if line.strip() == "using namespace qasm;"
     ) + 1
