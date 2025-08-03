@@ -1,5 +1,8 @@
 #include "qasm.hpp"
 
+/* gate majority not supported */
+/* gate unmaj not supported */
+
 class userqasm : public qasm::qasm
 {
 public:
@@ -10,18 +13,6 @@ public:
         qubits a = qalloc(4);
         qubits b = qalloc(4);
         qubits cout = qalloc(1);
-        void majority(qubit<> a, qubit<> b, qubit<> c) {
-            cx()(c, b);
-            cx()(c, a);
-            ccx()(a, b, c);
-        }
-        
-        void unmaj(qubit<> a, qubit<> b, qubit<> c) {
-            ccx()(a, b, c);
-            cx()(c, a);
-            cx()(a, b);
-        }
-        
         bit<5> ans;
         uint<4> a_in = 1;
         uint<4> b_in = 15;
