@@ -11,7 +11,7 @@ public:
         bit cl = clalloc(14);
         h()(q);
         for (unsigned int i : slice(0, 13)) {
-            x()(q[0], q[i]);
+            (ctrl() * x())(q[0], q[i]);
         }
         cl = measure(q);
         
