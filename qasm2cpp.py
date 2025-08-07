@@ -1,12 +1,6 @@
 #!/usr/bin/env python3
 """
 qasm2cpp.py ― OpenQASM 3 → C++‐like code translator
-             （gate／def／for／if／cast／assign 2025-07 対応・新旧 AST 両対応）
-
-  * uint[N]     → qasm::uint<N>
-  * bit[N]      → qasm::bit<N>
-  * qubit[N]    → qasm::qubit<N>
-  * float[N]    → qasm::float_<N>
 
 Requirements:
     python -m pip install "openqasm3[parser]"
