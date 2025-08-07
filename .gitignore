@@ -4,3 +4,7 @@ tests/generated/
 
 
 openqasm/
+
+examples/adder.qasm
+examples/qft.qasm
+examples/vqe.qasm
