@@ -8,7 +8,7 @@ public:
         using namespace qasm;
         
         qubits q = qalloc(4);
-        bit<4> c;
+        bit c = clalloc(4);
         reset(q);
         x()(q[0]);
         x()(q[2]);

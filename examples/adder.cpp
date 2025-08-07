@@ -13,7 +13,7 @@ public:
         qubits a = qalloc(4);
         qubits b = qalloc(4);
         qubits cout = qalloc(1);
-        bit<5> ans;
+        bit ans = clalloc(5);
         uint<4> a_in = 1;
         uint<4> b_in = 15;
         reset(cin);
