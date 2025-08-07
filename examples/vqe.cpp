@@ -79,7 +79,8 @@ public:
         float_<prec> energy;
         uint<prec> npaulis = get_npaulis();
         for (int t : slice(0, npaulis - 1)) {
-            bit<2 * n> spec = get_pauli(t);
+            bit spec = clalloc(2 * n);
+            spec = get_pauli(t);
             uint<prec> counts;
             counts = counts_for_term(spec, q);
             energy = update_energy(t, counts, energy);

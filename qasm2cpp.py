@@ -340,8 +340,24 @@ class CppEmitter(QASMVisitor[None]):
             self.emit(f"qubit {node.qubit.name} = qalloc();")
 
     def visit_ClassicalDeclaration(self, node: ast.ClassicalDeclaration):  # noqa: C901
+        name = node.identifier.name
+
+        # bit array → dynamic allocation via clalloc
+        if isinstance(node.type, ast.BitType) and node.type.size is not None:
+            size = self._expr(node.type.size)
+            if node.init_expression is not None:
+                rhs = (
+                    f"measure({self._qubit(node.init_expression.qubit)})"
+                    if isinstance(node.init_expression, ast.QuantumMeasurement)
+                    else self._expr(node.init_expression)
+                )
+                self.emit(f"bit {name} = clalloc({size});")
+                self.emit(f"{name} = {rhs};")
+            else:
+                self.emit(f"bit {name} = clalloc({size});")
+            return
+
         ctype_str = self._ctype(node.type)
-        name  = node.identifier.name
 
         is_template_uint   = isinstance(node.type, ast.UintType)  and node.type.size is not None
         is_template_bit    = isinstance(node.type, ast.BitType)   and node.type.size is not None
@@ -352,10 +368,13 @@ class CppEmitter(QASMVisitor[None]):
             if isinstance(node.type, (ast.BitType, ast.UintType)) and node.type.size else "")
 
         if node.init_expression is not None:
-            rhs = (str(node.init_expression.value) if is_template_uint and isinstance(node.init_expression, ast.IntegerLiteral)
-                   else f"measure({self._qubit(node.init_expression.qubit)})"
-                   if isinstance(node.init_expression, ast.QuantumMeasurement)
-                   else self._expr(node.init_expression))
+            rhs = (
+                str(node.init_expression.value)
+                if is_template_uint and isinstance(node.init_expression, ast.IntegerLiteral)
+                else f"measure({self._qubit(node.init_expression.qubit)})"
+                if isinstance(node.init_expression, ast.QuantumMeasurement)
+                else self._expr(node.init_expression)
+            )
             self.emit(f"{ctype_str} {name}{arr} = {rhs};")
         else:
             self.emit(f"{ctype_str} {name}{arr};")

@@ -8,7 +8,7 @@ public:
         using namespace qasm;
         
         qubits q = qalloc(14);
-        bit<14> cl;
+        bit cl = clalloc(14);
         h()(q);
         for (unsigned int i : slice(0, 13)) {
             x()(q[0], q[i]);
