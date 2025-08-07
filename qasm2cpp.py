@@ -219,7 +219,7 @@ class CppEmitter(QASMVisitor[None]):
     # visitor 実装
     # ----------------------------------------------------------------
     def visit_Program(self, node: ast.Program):
-        self.emit('#include "qasm.hpp"')
+        self.emit('#include <qasm/qasm.hpp>')
         self.emit("")
 
         extern_stmts: list[ast.ExternDeclaration] = []
