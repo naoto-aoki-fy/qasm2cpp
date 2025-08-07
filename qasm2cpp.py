@@ -384,7 +384,27 @@ class CppEmitter(QASMVisitor[None]):
         gname = node.name.name
         qargs = ", ".join(self._qubit(q) for q in node.qubits)
         params = ", ".join(self._expr(a) for a in node.arguments)
-        self.emit(f"{gname}({params})({qargs});")
+
+        gate_call = f"{gname}({params})"
+        mods: list[str] = []
+        for m in node.modifiers:
+            if m.modifier == ast.GateModifierName.ctrl:
+                arg = f"{self._expr(m.argument)}" if m.argument else ""
+                mods.append(f"ctrl({arg})")
+            elif m.modifier == ast.GateModifierName.inv:
+                mods.append("inv()")
+            elif m.modifier == ast.GateModifierName.pow:
+                mods.append(f"pow({self._expr(m.argument)})")
+            elif getattr(ast.GateModifierName, "neg", None) is not None and m.modifier == ast.GateModifierName.neg:
+                mods.append("neg()")
+            else:
+                mods.append(f"{m.modifier.name.lower()}()")
+
+        if mods:
+            gate_call = " * ".join(mods + [gate_call])
+            self.emit(f"({gate_call})({qargs});")
+        else:
+            self.emit(f"{gate_call}({qargs});")
 
     def visit_QuantumMeasurementStatement(self, node: ast.QuantumMeasurementStatement):
         src = self._qubit(node.measure.qubit)
